@@ -1,0 +1,173 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
+
+local sg = Instance.new("ScreenGui")
+sg.Name = "FakeChatAdmin_Fixed_V4"
+sg.ResetOnSpawn = false
+sg.DisplayOrder = 999
+sg.Parent = player:WaitForChild("PlayerGui")
+
+local icon = Instance.new("TextButton", sg)
+icon.Name = "ChatIcon"
+icon.Size = UDim2.new(0, 45, 0, 45)
+icon.Position = UDim2.new(0, 10, 0, 10)
+icon.Text = "💬"
+icon.TextSize = 25
+icon.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+icon.TextColor3 = Color3.new(1, 1, 1)
+icon.ZIndex = 10
+
+local corner = Instance.new("UICorner", icon)
+corner.CornerRadius = UDim.new(0, 10)
+local stroke = Instance.new("UIStroke", icon)
+stroke.Thickness = 2
+stroke.Color = Color3.new(0, 0, 0)
+
+local freezeBtn = Instance.new("TextButton", sg)
+freezeBtn.Name = "FreezeBtn"
+freezeBtn.Size = UDim2.new(0, 40, 0, 40)
+freezeBtn.Position = UDim2.new(0, 12, 0, 60)
+freezeBtn.Text = "❄️"
+freezeBtn.TextSize = 22
+freezeBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+freezeBtn.TextColor3 = Color3.new(1, 1, 1)
+freezeBtn.Visible = false
+freezeBtn.ZIndex = 10
+Instance.new("UICorner", freezeBtn).CornerRadius = UDim.new(0, 8)
+
+local mainBar = Instance.new("Frame", sg)
+mainBar.Name = "MainBar"
+mainBar.Size = UDim2.new(0, 0, 0, 40) 
+mainBar.Position = UDim2.new(0, 65, 0, 12)
+mainBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainBar.BackgroundTransparency = 0.4
+mainBar.BorderSizePixel = 0
+mainBar.ClipsDescendants = true
+mainBar.Visible = false
+
+local mainStroke = Instance.new("UIStroke", mainBar)
+mainStroke.Thickness = 2
+mainStroke.Color = Color3.new(0,0,0)
+
+local input = Instance.new("TextBox", mainBar)
+input.Size = UDim2.new(1, -50, 1, 0)
+input.Position = UDim2.new(0, 10, 0, 0)
+input.BackgroundTransparency = 1
+input.PlaceholderText = "Gõ lệnh..."
+input.TextColor3 = Color3.new(1, 1, 1)
+input.TextXAlignment = Enum.TextXAlignment.Left
+input.TextSize = 16
+
+local enterBtn = Instance.new("TextButton", mainBar)
+enterBtn.Size = UDim2.new(0, 40, 1, 0)
+enterBtn.Position = UDim2.new(1, -40, 0, 0)
+enterBtn.Text = "->"
+enterBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+enterBtn.TextColor3 = Color3.new(1, 1, 1)
+enterBtn.BorderSizePixel = 0
+
+local suggestFrame = Instance.new("ScrollingFrame", sg)
+suggestFrame.Size = UDim2.new(0, 200, 0, 150)
+suggestFrame.Position = UDim2.new(0, 65, 0, 60)
+suggestFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+suggestFrame.BackgroundTransparency = 0.3
+suggestFrame.Visible = false
+suggestFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+suggestFrame.ScrollBarThickness = 4
+local layout = Instance.new("UIListLayout", suggestFrame)
+
+local commands = {
+	"noclip on", "noclip off", "esp on", "esp off", "rejoin", "speed ", "speed off", 
+	"tp tool", "clear item", "god mod", "off god mod", "invisible on", "invisible off",
+	"jumppower 5", "jumppower 10", "jumppower 15", "jumppower 20", "jumppower 40", 
+	"jumppower random", "jumppower off", "anti lag", "off anti lag", "reset",
+	"spin ", "spin off", "lock camera", "off lock", "freeze on", "freeze off"
+}
+
+local noclipConnection, jumpConnection, fakeLagConnection, spinConn, lockConn
+local espHighlights = {}
+local jumpBoostAmount = 0
+local spinSpeed = 0
+local isLockCam = false
+local isFrozen = false
+
+function executeCommand(cmd)
+	local char = player.Character
+	if not char then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart")
+	cmd = cmd:lower()
+
+	if cmd == "noclip on" then
+		if noclipConnection then noclipConnection:Disconnect() end
+		noclipConnection = RunService.Stepped:Connect(function()
+			for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
+		end)
+	elseif cmd == "noclip off" then
+		if noclipConnection then noclipConnection:Disconnect() end
+	elseif cmd == "esp on" then
+		for _, p in pairs(Players:GetPlayers()) do
+			if p ~= player and p.Character then
+				local hl = Instance.new("Highlight")
+				hl.Parent = p.Character
+				hl.Name = "ESPHighlight"
+				hl.FillColor = Color3.new(1, 0, 0)
+				table.insert(espHighlights, hl)
+			end
+		end
+	elseif cmd == "esp off" then
+		for _, p in pairs(Players:GetPlayers()) do
+			if p.Character then
+				local h = p.Character:FindFirstChild("ESPHighlight")
+				if h then h:Destroy() end
+			end
+		end
+		espHighlights = {}
+	elseif cmd:sub(1, 10) == "jumppower " then
+		local val = cmd:sub(11)
+		if jumpConnection then jumpConnection:Disconnect() end
+		if val == "off" then
+			jumpBoostAmount = 0
+		else
+			jumpConnection = hum.Jumping:Connect(function()
+				local boost = (val == "random") and math.random(1, 100) or tonumber(val) or 0
+				if boost > 0 then
+					local vel = Instance.new("BodyVelocity")
+					local dir = Vector3.new(0, boost * 5, 0)
+					if spinSpeed > 0 and isLockCam then
+						dir = dir + (root.CFrame.LookVector * -spinSpeed * 2)
+					end
+					vel.Velocity = dir
+					vel.MaxForce = Vector3.new(100000, 100000, 100000)
+					vel.Parent = root
+					task.wait(0.15)
+					vel:Destroy()
+				end
+			end)
+		end
+	elseif cmd:sub(1, 5) == "spin " then
+		spinSpeed = tonumber(cmd:sub(6)) or 0
+		if spinConn then spinConn:Disconnect() end
+		if spinSpeed > 0 then
+			spinConn = RunService.RenderStepped:Connect(function()
+				if not isLockCam then
+					root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(spinSpeed), 0)
+				end
+			end)
+		end
+	elseif cmd == "spin off" or cmd == "spin 0" then
+		spinSpeed = 0
+		if spinConn then spinConn:Disconnect() end
+	elseif cmd == "lock camera" then
+		isLockCam = true
+		if lockConn then lockConn:Disconnect() end
+		lockConn = RunService.RenderStepped:Connect(function()
+			local _, y, _ = camera.CFrame:ToEulerAnglesYXZ()
+			root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, y, 0
